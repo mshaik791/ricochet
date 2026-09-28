@@ -5,3 +5,8 @@ dist/
 !.env.example
 *.log
 .DS_Store
+
+# Cox documents received under NDA and outbound correspondence stay local. Never push.
+docs/cox/*.pdf
+docs/cox/*.docx
+docs/cox/email-*.md

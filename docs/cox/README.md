@@ -1,7 +1,7 @@
 # Cox / VinSolutions reference docs
-- VinSolutions_API_Overview.pdf — partner program overview, FAQ, event types, plans
-- Step2_Service_Agreement.pdf — fee schedule and participation form (NOT signed yet)
-- Step_1_2_Cox_Auto_API_Initial_Assessment.docx — blank initial assessment form
+
+The PDFs and docx from Cox (API overview, Step 2 Service Agreement, initial assessment form) were received under NDA.
+They live in this folder locally and are gitignored. Ask Hameed for copies. Same for `email-*.md` drafts.
 
 ## OpenAPI specs (download from the storefront product pages, keep these exact filenames)
 - lead-management.openapi.json         <- "Lead Management - 1.0" product page
