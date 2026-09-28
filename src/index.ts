@@ -19,7 +19,7 @@ const scheduler = new MemoryScheduler();
 
 let vin: VinAdapter; let vinName: string; let fakeVin: FakeVinAdapter | undefined;
 if (config.cox.lm.apiKey) {
-  vin = new CoxAdapter({ ...config.cox.lm });
+  vin = new CoxAdapter(config.cox.lm);
   vinName = `cox:${config.cox.lm.baseUrl}`;
 } else {
   if (config.env === "production") throw new Error("COX_LM_API_KEY is required in production");
@@ -46,6 +46,7 @@ const app = await buildServer({
 const orchestrator = new Orchestrator({
   store, scheduler, vin, sms, email, composer, storeTz: config.storeTz, emailFromDomain: config.postmark.fromDomain,
   defaultSmsFrom: config.twilio.defaultFrom, publicBaseUrl: config.publicBaseUrl, log: app.log,
+  storeName: config.cox.storeName, defaultRepId: config.cox.defaultRepId,
 });
 pending.orchestrator = orchestrator;
 

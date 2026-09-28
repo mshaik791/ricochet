@@ -25,14 +25,31 @@ them in a 5-minute simulation, so nobody's leads get taken and it doesn't sound 
   $65 + $50 per rooftop per month once live). 10–15 business days for integration credentials after Step 2.
   Open questions for Jason: (1) any way to send email/SMS through Vin, or log-only? (2) does Eventing carry its own
   annual fee? (3) can Lead Management create appointments? (4) does it expose lead activity history?
+  (5) which Vin userId is associated with our OAuth client, for the contacts API? (6) how do we read the assigned
+  salesperson on a lead (no field in lead v3/v4)? (7) add Users, Dealers, Inventory and Notes (Digital Showroom) to
+  the sandbox package. (8) the sandbox /subscriber is another vendor's; do we get our own subscriber + sink?
   Jason said: Lead Management covers Contact Management + Lead Submission; Digital Showroom can add notes and create a
   showroom visit; "request any related APIs and we'll approve."
 
-## Cox sandbox facts
-- Lead Management: API key auth (`x-api-key`), base https://sandbox.api.vinsolutions.com,
-  `Accept`/`Content-Type: application/vnd.coxauto.v3+json`.
-- Connect Event Service: OAuth client_credentials + `x-api-key`, base
-  https://sandbox.api.coxautoinc.com/vinsolutions/eventingapi, `application/vnd.coxauto.v1+json`, scope PublicAPI.
+## Cox sandbox facts (verified live on 9/27/2026 unless marked)
+- OAuth: `POST https://authentication.vinsolutions.com/connect/token`, client_credentials, scope PublicAPI. Token is
+  opaque (no claims). One client works for BOTH products.
+- Lead Management, base https://sandbox.api.vinsolutions.com. The storefront says `x-api-key`; the gateway rejects it
+  ("Invalid or inactive api_key"). Working auth is header `api_key: <key>` PLUS `Authorization: Bearer <token>`.
+  Media versions are per resource: leads v4 (nested ids), contacts v3, vehicles of interest v1, leadsources v1.
+  Every href in a response points at https://api.vinsolutions.com even in sandbox; the adapter rebases the origin.
+  `GET /leads?dealerId=12617` works (63k leads, source "Xtime"). `GET /leads/id/{id}` v4 works but carries NO assigned
+  user field in any version. `GET /vehicles/interest?leadId=&dealerId=` v1 works. Contacts return 403 "Supplied user
+  id is not associated with your authorization token" until we pass a `userId` Cox gives us (COX_LM_USER_ID).
+  NOT in our sandbox plan (596 Service Not Found or AWS route-missing): /users, /dealers, /vehicles/inventory,
+  /leads/id/{id}/notes. The orchestrator falls back to onboarded reps and STORE_NAME; notes fail soft and are logged.
+- Connect Event Service, base https://sandbox.api.coxautoinc.com/vinsolutions/eventingapi, `x-api-key` + bearer,
+  v1 media type. Resources are singular: `GET /subscriber` (sink registration: auth type, endpoint, rate limit) and
+  `GET /subscription` (per dealer: status + event types). Unknown routes return the AWS "Invalid key=value pair"
+  403, which just means route not found.
+- WARNING: the sandbox subscriber is shared. `/subscriber` currently shows another vendor's sink (a carnow.com URL)
+  with subscriptions for dealers 1, 12617, 6082, 6210, all inactive. Do not PUT/POST to /subscriber from the sandbox
+  client until Jason confirms we have our own subscriber, or we would hijack theirs.
 - Events are delivered by push to an Event Sink you register in the storefront (destination URL, auth type, rate limit).
   Event types: AppointmentUpdated, ConsentUpdated, CustomerCreated/Updated/Merged, LastContactAttemptUpdated,
   LeadCreated, LeadUpdated, ShowroomVisitCompleted, VehicleOfInterestCreated/Updated.
@@ -63,11 +80,10 @@ them in a 5-minute simulation, so nobody's leads get taken and it doesn't sound 
 ## Architecture
 - Node 22 + TypeScript, Fastify, Postgres (memory store in dev), Fly.io (always-on machine, sjc).
 - `src/engine/orchestrator.ts` is the ONLY thing that sends. Adapters never send.
-- `src/adapters/vin/cox.ts` — all REST paths live in the `ENDPOINTS` table at the top. They were written from the
-  storefront facts and public Vin API docs, NOT from the OpenAPI specs (which were not in the repo on 9/27/2026).
-  `npm run cox:spec-check` validates the table against `docs/cox/*.openapi.json` once those are downloaded. Run it
-  before the first sandbox call and fix any FAIL lines. Vin responses are HATEOAS-ish; mappers accept hrefs and
-  PascalCase/camelCase.
+- `src/adapters/vin/cox.ts` — all REST paths live in the `ENDPOINTS` table at the top, each with its media version
+  and a `verified` flag (true = 200 seen in the sandbox on 9/27/2026). `npm run cox:spec-check` validates the table
+  against `docs/cox/*.openapi.json` once those are downloaded. `npm run cox:smoke` walks the sandbox end to end.
+  Vin responses are HATEOAS-ish; mappers accept string hrefs (v3), {href,id} objects (v4) and PascalCase/camelCase.
 - Event sink auth: `src/webhooks/coxSinkAuth.ts`. Mode must match what is registered in the storefront (header, basic
   or bearer). `none` is dev-only. Dedupe on TrackingId happens in the route before the orchestrator sees the event.
 - LLM composer: OpenAI by default (`LLM_PROVIDER=openai`, `OPENAI_MODEL`), Claude selectable (`LLM_PROVIDER=anthropic`).
@@ -81,10 +97,9 @@ them in a 5-minute simulation, so nobody's leads get taken and it doesn't sound 
 Responded within 15 min: 20% → 95% (within 2 min). Leads contacted: 48% → 80%. Appointments per 100 leads: ~7 → 15+.
 
 ## Immediate next steps
-1. Put OpenAPI specs for both products in `docs/cox/` (download from storefront product pages), run
-   `npm run cox:spec-check`, fix ENDPOINTS until it passes.
-2. Rotate the sandbox keys that appeared in the 9/27 storefront screenshot and the OpenAI key pasted in chat. Put the
-   new ones in `.env`. Run `npm run cox:smoke -- --lead <sandbox lead id>`.
+1. Email Jason questions 5–8 above. Contacts, assigned rep, notes and our own event sink are all blocked on him.
+2. Put OpenAPI specs for both products in `docs/cox/`, run `npm run cox:spec-check`, fix any unverified ENDPOINTS.
+   Rotate the sandbox keys from the 9/27 screenshot/chat and the OpenAI key; put the new ones in `.env`.
 3. Deploy to Fly; register Event Sink pointing at /webhooks/cox/events with the header auth from `.env`.
 4. Twilio account + 10DLC brand/campaign; Postmark sending domain mail.getricochet.live with SPF/DKIM/DMARC.
 5. PgStore + scheduled_steps runner (replace MemoryStore/MemoryScheduler in prod).

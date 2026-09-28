@@ -8,7 +8,9 @@ export interface Config {
   storeTz: string;
   logLevel: string;
   cox: {
-    lm: { baseUrl: string; apiKey: string; accept: string; tokenUrl?: string; clientId?: string; clientSecret?: string };
+    lm: { baseUrl: string; apiKey: string; apiKeyHeader: string; tokenUrl: string; clientId: string; clientSecret: string; userId?: string };
+    defaultRepId?: string;
+    storeName: string;
     events: { baseUrl: string; apiKey: string; accept: string; tokenUrl: string; clientId: string; clientSecret: string; scope: string };
     sandboxDealerId?: string;
     sink: {
@@ -52,11 +54,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         lm: {
           baseUrl: str("COX_LM_BASE_URL", "https://sandbox.api.vinsolutions.com").replace(/\/$/, ""),
           apiKey: str("COX_LM_API_KEY"),
-          accept: str("COX_LM_ACCEPT", "application/vnd.coxauto.v3+json"),
-          tokenUrl: opt("COX_LM_TOKEN_URL"),
-          clientId: opt("COX_LM_CLIENT_ID"),
-          clientSecret: opt("COX_LM_CLIENT_SECRET"),
+          // Sandbox gateway rejects x-api-key for Lead Management; it wants api_key. Confirmed 2026-09-27.
+          apiKeyHeader: str("COX_LM_API_KEY_HEADER", "api_key"),
+          // Lead Management needs the same OAuth bearer as the event service. Fall back to those creds.
+          tokenUrl: str("COX_LM_TOKEN_URL") || str("COX_EVENTS_TOKEN_URL", "https://authentication.vinsolutions.com/connect/token"),
+          clientId: str("COX_LM_CLIENT_ID") || str("COX_EVENTS_CLIENT_ID"),
+          clientSecret: str("COX_LM_CLIENT_SECRET") || str("COX_EVENTS_CLIENT_SECRET"),
+          userId: opt("COX_LM_USER_ID"),
         },
+        defaultRepId: opt("COX_DEFAULT_REP_ID"),
+        storeName: str("STORE_NAME", "the dealership"),
         events: {
           baseUrl: str("COX_EVENTS_BASE_URL", "https://sandbox.api.coxautoinc.com/vinsolutions/eventingapi").replace(/\/$/, ""),
           apiKey: str("COX_EVENTS_API_KEY"),

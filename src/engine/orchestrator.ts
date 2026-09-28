@@ -25,6 +25,10 @@ export interface OrchestratorDeps {
   emailFromDomain: string;
   defaultSmsFrom?: string;
   publicBaseUrl?: string;
+  /** Used when the Vin dealer API is unavailable (not in our plan). */
+  storeName?: string;
+  /** Pilot-only: assign otherwise-unassigned leads to this rep. Off unless set. */
+  defaultRepId?: string;
   now?: () => Date;
   log?: Logger;
 }
@@ -88,7 +92,10 @@ export class Orchestrator {
       case "LeadCreated":
       case "LeadUpdated": {
         if (!leadId) return { action: "ignored_no_lead" };
-        const lead = await this.d.vin.getLead(leadId, dealerId);
+        let lead = await this.d.vin.getLead(leadId, dealerId);
+        const evRep = ev.UserId ?? ev.AssignedUserId ?? ev.SalespersonId ?? ev.assignedUserId ?? ev.userId;
+        if (!lead.repId && evRep) lead = { ...lead, repId: String(evRep) };
+        if (!lead.repId && this.d.defaultRepId) lead = { ...lead, repId: this.d.defaultRepId };
         if (!lead.repId) return { action: "waiting_for_assignment" };
         const bundle = await this.loadBundle(lead);
         await this.onLeadAssigned(bundle);
@@ -131,16 +138,38 @@ export class Orchestrator {
     }
   }
 
+  /**
+   * Reads contact, rep and dealer. The Vin user and dealer APIs are not in our sandbox plan yet, so the rep
+   * falls back to what the rep saved in /setup and the dealer falls back to STORE_NAME.
+   */
   async loadBundle(lead: Lead): Promise<LeadBundle> {
     const [contact, rep, dealer] = await Promise.all([
       this.d.vin.getContact(lead.contactId, lead.dealerId),
-      this.d.vin.getUser(lead.repId!, lead.dealerId),
-      this.d.vin.getDealer(lead.dealerId),
+      this.d.vin.getUser(lead.repId!, lead.dealerId).catch(async (e) => {
+        const stored = await this.d.store.getRep(lead.repId!);
+        if (!stored) throw new Error(`rep ${lead.repId} not in Vin user API (${String(e).slice(0, 80)}) and not onboarded via /setup`);
+        this.log.warn({ repId: lead.repId }, "vin user API unavailable, using onboarded rep");
+        return stored;
+      }),
+      this.getDealerSafe(lead.dealerId),
     ]);
     if (lead.vehicles.length === 0) {
       try { lead = { ...lead, vehicles: await this.d.vin.getLeadVehicles(lead.id, lead.dealerId) }; } catch (e) { this.log.warn({ err: String(e) }, "vehicles lookup failed"); }
     }
     return { lead, contact, rep, dealer };
+  }
+
+  private dealerCache = new Map<string, Dealer>();
+  async getDealerSafe(dealerId: string): Promise<Dealer> {
+    const cached = this.dealerCache.get(dealerId);
+    if (cached) return cached;
+    try {
+      const d = await this.d.vin.getDealer(dealerId);
+      if (d.name) { this.dealerCache.set(dealerId, d); return d; }
+    } catch { /* not in plan */ }
+    const d: Dealer = { id: dealerId, name: this.d.storeName ?? "the dealership", timezone: this.d.storeTz };
+    this.dealerCache.set(dealerId, d);
+    return d;
   }
 
   /* ---------------- Inbound ---------------- */
@@ -279,7 +308,7 @@ export class Orchestrator {
       return "deferred";
     }
 
-    const requiredLines = kind === "opt_in_request" ? [FIXED.optInRequest(rep.firstName, (await this.d.vin.getDealer(lead.dealerId)).name || "the dealership")] : undefined;
+    const requiredLines = kind === "opt_in_request" ? [FIXED.optInRequest(rep.firstName, (await this.getDealerSafe(lead.dealerId)).name || "the dealership")] : undefined;
     await this.deliver(conv, rep, contact, channel, { kind, requiredLines });
     if (kind === "opt_in_request") await this.d.store.upsertConversation({ ...(await this.d.store.getConversation(conv.leadId))!, smsConsentPending: true });
     await this.d.scheduler.complete(step.id);
@@ -326,7 +355,7 @@ export class Orchestrator {
     const lead = (await this.d.store.getLead(leadId))!;
     const rep = (await this.d.store.getRep(conv.repId))!;
     const contact = (await this.d.store.getContact(conv.contactId))!;
-    const dealer = await this.d.vin.getDealer(lead.dealerId);
+    const dealer = await this.getDealerSafe(lead.dealerId);
     await this.d.store.upsertConversation({ ...conv, state: "handed_off", stateReason: reason });
     await this.d.scheduler.cancelForLead(leadId);
 
@@ -347,7 +376,7 @@ export class Orchestrator {
 
   private async deliver(conv: Conversation, rep: Rep, contact: Contact, channel: Channel, opts: Partial<ComposeContext> & { kind: ComposeKind }): Promise<Message> {
     const lead = (await this.d.store.getLead(conv.leadId))!;
-    const dealer = await this.d.vin.getDealer(lead.dealerId);
+    const dealer = await this.getDealerSafe(lead.dealerId);
     const history = await this.d.store.listMessages(conv.leadId);
     const ctx: ComposeContext = {
       channel, rep, dealerName: dealer.name || "the dealership", customerFirstName: contact.firstName, vehicle: lead.vehicles[0], history, ...opts,

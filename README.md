@@ -61,6 +61,12 @@ npm run cox:smoke -- --lead <leadId>       # lead -> contact -> user -> vehicles
 npm run cox:smoke -- --lead <leadId> --note   # also writes one [Ricochet] note
 ```
 
+### What the sandbox taught us (9/27/2026)
+
+Lead Management needs `api_key` (not `x-api-key`) plus the OAuth bearer. Leads are v4, vehicles v1, contacts v3.
+Hrefs point at production and get rebased. Contacts need a `userId` from Cox. Users, dealers, inventory and notes are
+not in the sandbox plan yet. The `ENDPOINTS` table marks what has been seen working. Full notes in `CLAUDE.md`.
+
 ### Event sink
 
 Register `PUBLIC_BASE_URL/webhooks/cox/events` in the storefront. Pick the auth type there and mirror it in `.env`:
