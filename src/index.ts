@@ -18,7 +18,8 @@ const store = new MemoryStore();
 const scheduler = new MemoryScheduler();
 
 let vin: VinAdapter; let vinName: string; let fakeVin: FakeVinAdapter | undefined;
-if (config.cox.lm.apiKey) {
+// VIN_ADAPTER=fake forces the seeded fake dealer even when Cox keys are present (npm run demo).
+if (config.cox.lm.apiKey && process.env.VIN_ADAPTER !== "fake") {
   vin = new CoxAdapter(config.cox.lm);
   vinName = `cox:${config.cox.lm.baseUrl}`;
 } else {

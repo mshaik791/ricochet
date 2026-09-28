@@ -15,7 +15,8 @@
     "test": "node --import tsx --test test/*.test.ts",
     "cox:spec-check": "node --import tsx scripts/cox-spec-check.ts",
     "cox:smoke": "node --env-file=.env --import tsx scripts/sandbox-smoke.ts",
-    "cox:simulate": "node --env-file=.env --import tsx scripts/simulate-event.ts"
+    "cox:simulate": "node --env-file=.env --import tsx scripts/simulate-event.ts",
+    "demo": "VIN_ADAPTER=fake node --env-file=.env --import tsx src/index.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
