@@ -63,7 +63,16 @@ them in a 5-minute simulation, so nobody's leads get taken and it doesn't sound 
 ## Architecture
 - Node 22 + TypeScript, Fastify, Postgres (memory store in dev), Fly.io (always-on machine, sjc).
 - `src/engine/orchestrator.ts` is the ONLY thing that sends. Adapters never send.
-- `src/adapters/vin/cox.ts` — every method marked TODO(cox) must be implemented against the OpenAPI specs in `docs/`.
+- `src/adapters/vin/cox.ts` — all REST paths live in the `ENDPOINTS` table at the top. They were written from the
+  storefront facts and public Vin API docs, NOT from the OpenAPI specs (which were not in the repo on 9/27/2026).
+  `npm run cox:spec-check` validates the table against `docs/cox/*.openapi.json` once those are downloaded. Run it
+  before the first sandbox call and fix any FAIL lines. Vin responses are HATEOAS-ish; mappers accept hrefs and
+  PascalCase/camelCase.
+- Event sink auth: `src/webhooks/coxSinkAuth.ts`. Mode must match what is registered in the storefront (header, basic
+  or bearer). `none` is dev-only. Dedupe on TrackingId happens in the route before the orchestrator sees the event.
+- LLM composer: OpenAI by default (`LLM_PROVIDER=openai`, `OPENAI_MODEL`), Claude selectable (`LLM_PROVIDER=anthropic`).
+  Every draft goes through `src/engine/compliance.ts`: policy check, one retry with feedback, then TemplateComposer.
+  Nothing non-compliant is ever sent.
 - Messaging: Twilio (one local number per rep, 10DLC registered) + Postmark (per-rep from-address on a sending
   subdomain, reply+<leadId>@ inbound routing, open tracking). Cox does not send for us; we log every message to the lead.
 - Rep onboarding: `src/api/setup.html` — 7-turn simulated customer, style knobs, 3-message preview, save → voice profile.
@@ -72,9 +81,11 @@ them in a 5-minute simulation, so nobody's leads get taken and it doesn't sound 
 Responded within 15 min: 20% → 95% (within 2 min). Leads contacted: 48% → 80%. Appointments per 100 leads: ~7 → 15+.
 
 ## Immediate next steps
-1. Put OpenAPI specs for both products in `docs/` (download from storefront product pages).
-2. Implement CoxAdapter + event-sink verification; run against sandbox dealer.
-3. Deploy to Fly; register Event Sink pointing at /webhooks/cox/events.
+1. Put OpenAPI specs for both products in `docs/cox/` (download from storefront product pages), run
+   `npm run cox:spec-check`, fix ENDPOINTS until it passes.
+2. Rotate the sandbox keys that appeared in the 9/27 storefront screenshot and the OpenAI key pasted in chat. Put the
+   new ones in `.env`. Run `npm run cox:smoke -- --lead <sandbox lead id>`.
+3. Deploy to Fly; register Event Sink pointing at /webhooks/cox/events with the header auth from `.env`.
 4. Twilio account + 10DLC brand/campaign; Postmark sending domain mail.getricochet.live with SPF/DKIM/DMARC.
 5. PgStore + scheduled_steps runner (replace MemoryStore/MemoryScheduler in prod).
 6. Manager dashboard (leads today, assistant engaged, replied, appointment set, handed off).

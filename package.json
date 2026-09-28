@@ -1,0 +1,31 @@
+{
+  "name": "ricochet",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Per-salesperson AI lead-response assistant for VinSolutions dealerships",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "dev": "node --env-file=.env --import tsx --watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "cox:spec-check": "node --import tsx scripts/cox-spec-check.ts",
+    "cox:smoke": "node --env-file=.env --import tsx scripts/sandbox-smoke.ts",
+    "cox:simulate": "node --env-file=.env --import tsx scripts/simulate-event.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
+    "@fastify/formbody": "^8.0.2",
+    "fastify": "^5.12.5",
+    "openai": "^7.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}

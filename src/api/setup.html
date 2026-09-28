@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ricochet setup</title>
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --line:#2a2f3a; --text:#e8eaf0; --muted:#9aa3b2; --accent:#ff7a1a; --ok:#3ddc84; --warn:#ffb347; }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif }
+  header { padding:18px 24px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:12px }
+  header b { color:var(--accent); letter-spacing:.5px }
+  header span { color:var(--muted) }
+  main { display:grid; grid-template-columns: 1.2fr 1fr; gap:20px; padding:20px 24px; max-width:1200px; margin:0 auto }
+  @media (max-width:860px){ main { grid-template-columns:1fr } }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px }
+  h2 { margin:0 0 12px; font-size:16px } h3 { margin:14px 0 6px; font-size:14px; color:var(--muted); font-weight:600 }
+  label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px }
+  input[type=text], input[type=email], textarea, select { width:100%; background:#0c0e12; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:9px 10px; font:inherit }
+  textarea { min-height:70px; resize:vertical }
+  button { background:var(--accent); color:#000; border:0; border-radius:8px; padding:10px 14px; font:inherit; font-weight:600; cursor:pointer }
+  button.secondary { background:#262b36; color:var(--text) }
+  button:disabled { opacity:.5; cursor:default }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+  .chat { display:flex; flex-direction:column; gap:10px; max-height:420px; overflow:auto; padding:6px 2px }
+  .msg { max-width:85%; padding:10px 12px; border-radius:12px; white-space:pre-wrap }
+  .msg.customer { background:#232836; align-self:flex-start; border-bottom-left-radius:4px }
+  .msg.rep { background:#3a2a1a; align-self:flex-end; border-bottom-right-radius:4px }
+  .coach { font-size:12px; color:var(--warn); align-self:flex-end; max-width:85%; text-align:right }
+  .pill { display:inline-block; font-size:12px; padding:2px 8px; border-radius:999px; background:#262b36; color:var(--muted) }
+  .pill.ok { color:var(--ok) }
+  .preview { border:1px solid var(--line); border-radius:10px; padding:12px; margin-top:10px; white-space:pre-wrap; background:#0c0e12 }
+  .preview small { color:var(--muted); display:block; margin-bottom:6px }
+  .muted { color:var(--muted); font-size:13px }
+  .hidden { display:none }
+  .knobs { display:grid; grid-template-columns:1fr 1fr; gap:0 14px }
+</style>
+</head>
+<body>
+<header><b>RICOCHET</b><span>Rep setup. About 5 minutes.</span></header>
+<main>
+  <section class="panel">
+    <div id="start">
+      <h2>1. Who are you?</h2>
+      <p class="muted">A pretend customer will text you 7 times about a car on the lot. Answer exactly how you would on your own phone. Your assistant learns your voice from these, not the answers themselves. It follows the store rules on price and availability even if you don't.</p>
+      <div class="knobs">
+        <div><label>Vin user id</label><input id="repId" type="text" placeholder="e.g. 501"></div>
+        <div><label>First name</label><input id="firstName" type="text" placeholder="Sam"></div>
+        <div><label>Last name</label><input id="lastName" type="text"></div>
+        <div><label>Your cell (for handoff texts)</label><input id="phone" type="text" placeholder="+1 925 555 0101"></div>
+        <div><label>Email</label><input id="email" type="email"></div>
+        <div><label>Store</label><input id="dealerName" type="text" value="Dublin Mazda"></div>
+      </div>
+      <div class="row" style="margin-top:14px"><button id="startBtn">Start the simulation</button><span id="startErr" class="muted"></span></div>
+    </div>
+    <div id="sim" class="hidden">
+      <div class="row" style="justify-content:space-between"><h2 style="margin:0">2. Reply like you normally would</h2><span class="pill" id="turnPill">turn 1 of 7</span></div>
+      <p class="muted" id="vehicleLine"></p>
+      <div class="chat" id="chat"></div>
+      <div class="row" style="margin-top:10px; align-items:flex-start">
+        <textarea id="repMsg" placeholder="Type your reply..."></textarea>
+      </div>
+      <div class="row" style="margin-top:8px"><button id="sendBtn">Send</button><span class="muted">Enter to send, Shift+Enter for a new line.</span></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>3. Style knobs</h2>
+    <div class="knobs">
+      <div><label>Formality: <span id="formalityVal">2</span> (1 casual, 5 buttoned up)</label><input id="formality" type="range" min="1" max="5" value="2" style="width:100%"></div>
+      <div><label>Length</label><select id="length"><option value="short">Short</option><option value="medium">Medium</option></select></div>
+      <div><label>Greeting</label><input id="greeting" type="text" value="Hi"></div>
+      <div><label>Email sign-off</label><input id="signoff" type="text" placeholder="Thanks, Sam"></div>
+      <div><label><input id="emoji" type="checkbox"> Emoji ok</label></div>
+    </div>
+    <h2 style="margin-top:18px">4. Preview</h2>
+    <p class="muted">Three messages your assistant would send for a real lead, in your voice, after the policy check.</p>
+    <div class="row"><button id="previewBtn" class="secondary" disabled>Generate preview</button><span id="previewNote" class="muted"></span></div>
+    <div id="previews"></div>
+    <h2 style="margin-top:18px">5. Save</h2>
+    <div class="knobs">
+      <div><label>Your Twilio number (optional)</label><input id="smsFrom" type="text" placeholder="+1 925 555 0100"></div>
+      <div><label>Your from-address (optional)</label><input id="emailFrom" type="text" placeholder="sam@mail.getricochet.live"></div>
+    </div>
+    <div class="row" style="margin-top:12px"><button id="saveBtn" disabled>Save my voice</button><span id="saveNote" class="muted"></span></div>
+  </section>
+</main>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const token = new URLSearchParams(location.search).get("token");
+  const api = async (path, body) => {
+    const r = await fetch(path + (token ? `?token=${encodeURIComponent(token)}` : ""), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || r.statusText);
+    return j;
+  };
+  let session = null, done = false;
+  const knobs = () => ({ formality: Number($("formality").value), emoji: $("emoji").checked, length: $("length").value, greeting: $("greeting").value, signoff: $("signoff").value });
+  $("formality").oninput = () => $("formalityVal").textContent = $("formality").value;
+
+  const bubble = (cls, text) => { const d = document.createElement("div"); d.className = "msg " + cls; d.textContent = text; $("chat").appendChild(d); $("chat").scrollTop = 1e9; };
+  const coach = (items) => { if (!items.length) return; const d = document.createElement("div"); d.className = "coach"; d.textContent = "Your assistant would not say this: " + items.join(", "); $("chat").appendChild(d); };
+
+  $("startBtn").onclick = async () => {
+    $("startErr").textContent = "";
+    try {
+      session = await api("/api/setup/session", { repId: $("repId").value.trim(), firstName: $("firstName").value.trim(), lastName: $("lastName").value.trim(), phone: $("phone").value.trim() || undefined, email: $("email").value.trim() || undefined, dealerName: $("dealerName").value.trim() || undefined });
+      $("start").classList.add("hidden"); $("sim").classList.remove("hidden");
+      $("vehicleLine").textContent = `${session.customer.firstName} is asking about a ${session.vehicle.year} ${session.vehicle.make} ${session.vehicle.model} ${session.vehicle.trim}, stock ${session.vehicle.stockNumber}, listed at $${session.vehicle.listedPrice.toLocaleString()}.`;
+      if (session.existingVoice) $("vehicleLine").textContent += " You already have a saved voice. Finishing this will replace it.";
+      bubble("customer", session.customerMessage);
+      $("repMsg").focus();
+    } catch (e) { $("startErr").textContent = e.message; }
+  };
+
+  const send = async () => {
+    const text = $("repMsg").value.trim(); if (!text || !session || done) return;
+    $("sendBtn").disabled = true; bubble("rep", text); $("repMsg").value = "";
+    try {
+      const r = await api("/api/setup/turn", { sessionId: session.sessionId, repMessage: text });
+      coach(r.coaching);
+      if (r.done) { done = true; $("turnPill").textContent = "done"; $("turnPill").classList.add("ok"); bubble("customer", "(end of simulation) Now set your style knobs and generate a preview."); $("previewBtn").disabled = false; $("saveBtn").disabled = false; }
+      else { $("turnPill").textContent = `turn ${r.turn} of ${r.totalTurns}`; bubble("customer", r.customerMessage); if (r.turn > 3) { $("previewBtn").disabled = false; $("saveBtn").disabled = false; } }
+    } catch (e) { coach([e.message]); }
+    $("sendBtn").disabled = false; $("repMsg").focus();
+  };
+  $("sendBtn").onclick = send;
+  $("repMsg").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
+
+  $("previewBtn").onclick = async () => {
+    $("previewBtn").disabled = true; $("previewNote").textContent = "writing..."; $("previews").innerHTML = "";
+    try {
+      const r = await api("/api/setup/preview", { sessionId: session.sessionId, knobs: knobs() });
+      for (const p of r.previews) {
+        const d = document.createElement("div"); d.className = "preview";
+        d.innerHTML = `<small>${p.kind.replace("_", " ")} via ${p.channel}${p.subject ? " · subject: " + escapeHtml(p.subject) : ""} · ${p.source === "template" ? "fallback template" : "in your voice"}</small>${escapeHtml(p.body)}`;
+        $("previews").appendChild(d);
+      }
+      $("previewNote").textContent = `${r.voice.sampleCount} of your replies used.`;
+    } catch (e) { $("previewNote").textContent = e.message; }
+    $("previewBtn").disabled = false;
+  };
+
+  $("saveBtn").onclick = async () => {
+    $("saveBtn").disabled = true; $("saveNote").textContent = "saving...";
+    try {
+      const r = await api("/api/setup/save", { sessionId: session.sessionId, knobs: knobs(), smsFrom: $("smsFrom").value.trim() || undefined, emailFrom: $("emailFrom").value.trim() || undefined });
+      $("saveNote").textContent = `Saved. ${r.sampleCount} samples on file for rep ${r.repId}. You're live for new leads.`;
+    } catch (e) { $("saveNote").textContent = e.message; $("saveBtn").disabled = false; }
+  };
+  function escapeHtml(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+})();
+</script>
+</body>
+</html>
